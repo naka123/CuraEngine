@@ -629,6 +629,8 @@ void SkinInfillAreaComputation::generateGradualInfill(SliceMeshStorage& mesh)
     const LayerIndex min_layer = mesh.settings.get<size_t>("initial_bottom_layers");
     const LayerIndex max_layer = mesh.layers.size() - 1 - mesh.settings.get<size_t>("top_layers");
 
+    const auto gradual_infill_step_expansion = mesh.settings.has("gradual_infill_step_expansion") ? mesh.settings.get<coord_t>("gradual_infill_step_expansion") : 500;
+
     for (LayerIndex layer_idx = 0; layer_idx < static_cast<LayerIndex>(mesh.layers.size()); layer_idx++)
     { // loop also over layers which don't contain infill cause of bottom_ and top_layer to initialize their infill_area_per_combine_per_density
         SliceLayer& layer = mesh.layers[layer_idx];
@@ -647,6 +649,7 @@ void SkinInfillAreaComputation::generateGradualInfill(SliceMeshStorage& mesh)
                 continue;
             }
             Polygons less_dense_infill = infill_area; // one step less dense with each infill_step
+            Polygons less_dense_infill_remaining = infill_area;
             for (size_t infill_step = 0; infill_step < max_infill_steps; infill_step++)
             {
                 LayerIndex min_layer = layer_idx + infill_step * gradual_infill_step_layer_count + static_cast<size_t>(layer_skip_count);
@@ -678,12 +681,20 @@ void SkinInfillAreaComputation::generateGradualInfill(SliceMeshStorage& mesh)
                 // add new infill_area_per_combine for the current density
                 part.infill_area_per_combine_per_density.emplace_back();
                 std::vector<Polygons>& infill_area_per_combine_current_density = part.infill_area_per_combine_per_density.back();
-                const Polygons more_dense_infill = infill_area.difference(less_dense_infill);
+                Polygons more_dense_infill = less_dense_infill_remaining.difference(less_dense_infill);
+
+                const coord_t current_step_expansion = gradual_infill_step_expansion * (infill_step + 1);
+                if (current_step_expansion > 0) {
+                    more_dense_infill = more_dense_infill.offset(current_step_expansion).intersection(infill_area);
+                    less_dense_infill = less_dense_infill.difference(more_dense_infill);
+                }
+
                 infill_area_per_combine_current_density.push_back(more_dense_infill);
+                less_dense_infill_remaining = less_dense_infill;
             }
             part.infill_area_per_combine_per_density.emplace_back();
             std::vector<Polygons>& infill_area_per_combine_current_density = part.infill_area_per_combine_per_density.back();
-            infill_area_per_combine_current_density.push_back(infill_area);
+            infill_area_per_combine_current_density.push_back(less_dense_infill_remaining);
             part.infill_area_own = nullptr; // clear infill_area_own, it's not needed any more.
             assert(!part.infill_area_per_combine_per_density.empty() && "infill_area_per_combine_per_density is now initialized");
         }
