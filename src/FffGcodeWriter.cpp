@@ -1443,10 +1443,10 @@ bool FffGcodeWriter::processMultiLayerInfill(const SliceDataStorage& storage, La
         Polygons infill_lines;
         for (size_t density_idx = part.infill_area_per_combine_per_density.size() - 1; (int)density_idx >= 0; density_idx--)
         { // combine different density infill areas (for gradual infill)
-            size_t density_factor = 2 << density_idx; // == pow(2, density_idx + 1)
+            size_t density_factor = 1 << (density_idx);
             coord_t infill_line_distance_here = infill_line_distance * density_factor; // the highest density infill combines with the next to create a grid with density_factor 1
-            coord_t infill_shift = infill_line_distance_here / 2;
-            if (density_idx == part.infill_area_per_combine_per_density.size() - 1 || infill_pattern == EFillMethod::CROSS || infill_pattern == EFillMethod::CROSS_3D)
+            coord_t infill_shift = 0;
+            if (infill_pattern == EFillMethod::CROSS || infill_pattern == EFillMethod::CROSS_3D)
             {
                 infill_line_distance_here /= 2;
             }
@@ -1568,8 +1568,9 @@ bool FffGcodeWriter::processSingleLayerInfill(const SliceDataStorage& storage, L
         Polygons infill_polygons_here;
 
         // the highest density infill combines with the next to create a grid with density_factor 1
-        int infill_line_distance_here = infill_line_distance << (density_idx + 1);
-        int infill_shift = infill_line_distance_here / 2;
+        size_t density_factor = 1 << (density_idx);
+        coord_t infill_line_distance_here = infill_line_distance * density_factor; // the highest density infill combines with the next to create a grid with density_factor 1
+        coord_t infill_shift = 0;
 
         /* infill shift explanation: [>]=shift ["]=line_dist
 
@@ -1587,7 +1588,7 @@ bool FffGcodeWriter::processSingleLayerInfill(const SliceDataStorage& storage, L
          >>>>>>>>"""""""""""""""""
          */
 
-        if (density_idx == last_idx || pattern == EFillMethod::CROSS || pattern == EFillMethod::CROSS_3D)
+        if (pattern == EFillMethod::CROSS || pattern == EFillMethod::CROSS_3D)
         { // the least dense infill should fill up all remaining gaps
         /*
          :       |       :       |       :       |       :       |       :  > furthest from top
@@ -1652,12 +1653,6 @@ bool FffGcodeWriter::processSingleLayerInfill(const SliceDataStorage& storage, L
                            infill_shift, max_resolution, max_deviation, wall_line_count_here, infill_origin, perimeter_gaps, connected_zigzags,
                            use_endpieces, skip_some_zags, zag_skip_count, pocket_size);
         infill_comp.generate(infill_polygons_here, infill_lines_here, mesh.cross_fill_provider, &mesh);
-        if (density_idx < last_idx)
-        {
-            const coord_t cut_offset = get_cut_offset(zig_zaggify_infill, infill_line_width, wall_line_count);
-            Polygons tool = sparse_in_outline.offset(static_cast<int>(cut_offset));
-            infill_lines_here.cut(tool);
-        }
         infill_lines.add(infill_lines_here);
         infill_polygons.add(infill_polygons_here);
     }
@@ -2705,10 +2700,10 @@ bool FffGcodeWriter::processSupportInfill(const SliceDataStorage& storage, Layer
                 const double support_area_offset = (gcode_layer.getLayerNr() == 0 && support_pattern == EFillMethod::CONCENTRIC) ? (support_line_width * infill_extruder.settings.get<coord_t>("support_brim_line_count") / 1000) : 0;
                 const Polygons support_area_with_offset = support_area_offset > 0 ? support_area.offset(support_area_offset) : Polygons();
 
-                const unsigned int density_factor = 2 << density_idx; // == pow(2, density_idx + 1)
+                const unsigned int density_factor = 1 << (density_idx);
                 int support_line_distance_here = default_support_line_distance * density_factor; // the highest density infill combines with the next to create a grid with density_factor 1
-                const int support_shift = support_line_distance_here / 2;
-                if (density_idx == part.infill_area_per_combine_per_density.size() - 1 || support_pattern == EFillMethod::CROSS || support_pattern == EFillMethod::CROSS_3D)
+                const int support_shift = 0;
+                if (support_pattern == EFillMethod::CROSS || support_pattern == EFillMethod::CROSS_3D)
                 {
                     support_line_distance_here /= 2;
                 }
