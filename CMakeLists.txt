@@ -20,7 +20,7 @@ if(ENABLE_ARCUS)
     # this, which defaults to OFF. We need to force this option to ON instead.
     set(protobuf_MODULE_COMPATIBLE ON CACHE INTERNAL "" FORCE)
     find_package(Protobuf 3.0.0 REQUIRED)
-    find_package(Arcus REQUIRED)
+    #find_package(Arcus REQUIRED)
     add_definitions(-DARCUS)
 endif()
 
@@ -260,7 +260,7 @@ set(engine_TEST_HELPERS
 
 # Generating ProtoBuf protocol
 if (ENABLE_ARCUS)
-    protobuf_generate_cpp(engine_PB_SRCS engine_PB_HEADERS Cura.proto)
+    #protobuf_generate_cpp(engine_PB_SRCS engine_PB_HEADERS Cura.proto)
 endif ()
 
 # Compiling CuraEngine itself.
@@ -276,7 +276,15 @@ else()
 endif()
 
 if (ENABLE_ARCUS)
+	link_directories( "libs" )
     target_link_libraries(_CuraEngine Arcus)
+    if(WIN32)
+        target_link_libraries(_CuraEngine wsock32 ws2_32)
+    endif()
+	target_link_libraries(_CuraEngine libprotobuf)
+	
+	add_library(cura_pb STATIC libs/cura_pb/cura.pb.cc)	
+	target_link_libraries(_CuraEngine cura_pb)	
 endif ()
 
 set_target_properties(_CuraEngine PROPERTIES COMPILE_DEFINITIONS "VERSION=\"${CURA_ENGINE_VERSION}\"")
