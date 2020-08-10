@@ -630,6 +630,7 @@ void SkinInfillAreaComputation::generateGradualInfill(SliceMeshStorage& mesh)
     const LayerIndex max_layer = mesh.layers.size() - 1 - mesh.settings.get<size_t>("top_layers");
 
     const auto gradual_infill_step_expansion = mesh.settings.has("gradual_infill_step_expansion") ? mesh.settings.get<coord_t>("gradual_infill_step_expansion") : 500;
+    const auto gradual_infill_skin_offset = mesh.settings.has("gradual_infill_skin_offset") ? mesh.settings.get<coord_t>("gradual_infill_skin_offset") : 1200;
 
     for (LayerIndex layer_idx = 0; layer_idx < static_cast<LayerIndex>(mesh.layers.size()); layer_idx++)
     { // loop also over layers which don't contain infill cause of bottom_ and top_layer to initialize their infill_area_per_combine_per_density
@@ -641,6 +642,7 @@ void SkinInfillAreaComputation::generateGradualInfill(SliceMeshStorage& mesh)
 
             const Polygons& infill_area = part.getOwnInfillArea();
 
+            const Polygons& offsetted_infill = infill_area.offset(-gradual_infill_skin_offset);
             if (infill_area.empty() || layer_idx < min_layer || layer_idx > max_layer)
             { // initialize infill_area_per_combine_per_density empty
                 part.infill_area_per_combine_per_density.emplace_back(); // create a new infill_area_per_combine
@@ -682,6 +684,13 @@ void SkinInfillAreaComputation::generateGradualInfill(SliceMeshStorage& mesh)
                 part.infill_area_per_combine_per_density.emplace_back();
                 std::vector<Polygons>& infill_area_per_combine_current_density = part.infill_area_per_combine_per_density.back();
                 Polygons more_dense_infill = less_dense_infill_remaining.difference(less_dense_infill);
+
+                if (gradual_infill_skin_offset > 0) {
+                    // filter out small area near walls, that don't need to be supported by infill
+                    const Polygons &filtered_out = more_dense_infill.difference(offsetted_infill);
+                    less_dense_infill = less_dense_infill.unionPolygons(filtered_out);
+                    more_dense_infill = more_dense_infill.intersection(offsetted_infill);
+                }
 
                 const coord_t current_step_expansion = gradual_infill_step_expansion * (infill_step + 1);
                 if (current_step_expansion > 0) {
